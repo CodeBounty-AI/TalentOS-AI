@@ -906,6 +906,8 @@
         .text-muted {
             color: var(--text-muted);
         }
+
+        /* ===== TOAST ===== */
         .toast-container {
             position: fixed;
             bottom: 90px;
@@ -914,6 +916,9 @@
             z-index: 200;
             width: 90%;
             max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
             pointer-events: none;
         }
         .toast {
@@ -926,28 +931,36 @@
             align-items: center;
             gap: 12px;
             box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
-            animation: slideUp 0.3s ease;
             pointer-events: auto;
-            margin-bottom: 8px;
+            animation: toastIn 0.35s cubic-bezier(0.21, 1.02, 0.73, 1);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .toast.removing {
+            opacity: 0;
+            transform: translateY(20px) scale(0.96);
         }
         .toast .toast-icon {
             font-size: 20px;
+            flex-shrink: 0;
         }
         .toast .toast-msg {
             flex: 1;
             font-size: 13px;
             font-weight: 500;
+            line-height: 1.4;
         }
-        @keyframes slideUp {
+        @keyframes toastIn {
             from {
                 opacity: 0;
-                transform: translateY(20px) scale(0.96);
+                transform: translateY(30px) scale(0.92);
             }
             to {
                 opacity: 1;
                 transform: translateY(0) scale(1);
             }
         }
+
+        /* ===== ESCROW MODAL ===== */
         #escrowModal {
             display: none;
             position: fixed;
@@ -968,6 +981,8 @@
             padding: 24px;
             animation: fadeSlideUp 0.3s ease;
         }
+
+        /* ===== RESPONSIVE ===== */
         @media (max-width: 430px) {
             .app-container {
                 max-width: 100%;
@@ -979,6 +994,7 @@
                 padding: 12px 16px 16px;
             }
         }
+
         /* utility */
         .relative {
             position: relative;
@@ -1278,7 +1294,6 @@
             // ----- STATE -----
             let balance = 1284.50;
             let currentPage = 'home';
-            let toastTimer = null;
 
             // ----- DOM CACHE -----
             const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -1549,20 +1564,59 @@
                 showToast('🤖', 'Showing all AI-recommended talent');
             });
 
-            // ----- TOAST SYSTEM (optimized) -----
+            // =============================================================
+            //  TOAST SYSTEM — SMOOTH, AUTO-DISMISS, NO BUGS
+            // =============================================================
+            let toastQueue = [];
+            let isProcessingToast = false;
+
             function showToast(icon, message) {
+                // Add to queue
+                toastQueue.push({ icon, message });
+                processToastQueue();
+            }
+
+            function processToastQueue() {
+                if (isProcessingToast || toastQueue.length === 0) return;
+                isProcessingToast = true;
+
+                const { icon, message } = toastQueue.shift();
                 const container = dom.toastContainer;
+                if (!container) {
+                    isProcessingToast = false;
+                    processToastQueue();
+                    return;
+                }
+
+                // Create toast element
                 const toast = document.createElement('div');
                 toast.className = 'toast';
                 toast.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-msg">${message}</span>`;
                 container.appendChild(toast);
-                clearTimeout(toastTimer);
-                toastTimer = setTimeout(() => {
-                    toast.style.opacity = '0';
-                    toast.style.transform = 'translateY(20px)';
-                    toast.style.transition = '0.25s ease';
-                    setTimeout(() => toast.remove(), 300);
-                }, 3000);
+
+                // Auto-remove after 2.8 seconds with smooth transition
+                let removeTimer = setTimeout(() => {
+                    removeToast(toast);
+                }, 2800);
+
+                // Allow manual dismiss on click (optional but user-friendly)
+                toast.addEventListener('click', () => {
+                    clearTimeout(removeTimer);
+                    removeToast(toast);
+                });
+
+                function removeToast(el) {
+                    // Prevent double removal
+                    if (el.dataset.removing === 'true') return;
+                    el.dataset.removing = 'true';
+                    el.classList.add('removing');
+                    setTimeout(() => {
+                        if (el.parentNode) el.parentNode.removeChild(el);
+                        // Process next in queue
+                        isProcessingToast = false;
+                        processToastQueue();
+                    }, 300);
+                }
             }
 
             // ----- KEYBOARD SHORTCUTS -----
@@ -1581,7 +1635,7 @@
             document.querySelector('.logo')?.addEventListener('dblclick', () => {
                 const root = document.documentElement;
                 const isDark = root.style.getPropertyValue('--bg-primary') === '#0a0a0f' || !root.style.getPropertyValue(
-                '--bg-primary');
+                    '--bg-primary');
                 root.style.setProperty('--bg-primary', isDark ? '#f5f5f7' : '#0a0a0f');
                 root.style.setProperty('--text-primary', isDark ? '#0a0a0f' : '#ffffff');
                 root.style.setProperty('--text-secondary', isDark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)');
@@ -1591,8 +1645,9 @@
 
             // ----- INIT -----
             updateBalanceUI();
-            setTimeout(() => showToast('👋', 'Welcome to TalentOS AI! All features are live.'), 400);
-            console.log('🚀 TalentOS AI optimized & bug-free');
+            // Welcome toast with a slight delay to avoid overlapping with other init toasts
+            setTimeout(() => showToast('👋', 'Welcome to TalentOS AI! All features are live.'), 500);
+            console.log('🚀 TalentOS AI — smooth toast system, no bugs');
 
         })();
     </script>
